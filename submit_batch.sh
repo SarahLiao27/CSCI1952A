@@ -16,4 +16,4 @@
 module load cuda
 
 # Run program
-# python eureka.py env=shadow_hand sample=4 iteration=2 model=gpt-4-0314
+# python eureka.py env=shadow_hand sample=4 iteration=2

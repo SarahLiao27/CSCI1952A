@@ -4,13 +4,12 @@ import json
 import logging 
 import matplotlib.pyplot as plt
 import os
-import openai
 import re
 import subprocess
 from pathlib import Path
 import shutil
-import time 
 
+from utils.local_llm import generate_rewards
 from utils.misc import * 
 from utils.file_utils import find_files_with_substring, load_tensorboard_logs
 from utils.create_task import create_task
@@ -24,8 +23,6 @@ def main(cfg):
     workspace_dir = Path.cwd()
     logging.info(f"Workspace: {workspace_dir}")
     logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
-
-    openai.api_key = os.getenv("OPENAI_API_KEY")
 
     task = cfg.env.task
     task_description = cfg.env.description
@@ -74,56 +71,26 @@ def main(cfg):
     # Eureka generation loop
     for iter in range(cfg.iteration):
         # Get Eureka response
-        responses = []
-        response_cur = None
-        total_samples = 0
-        total_token = 0
-        total_completion_token = 0
-        chunk_size = cfg.sample if "gpt-3.5" in model else 4
-
-        logging.info(f"Iteration {iter}: Generating {cfg.sample} samples with {cfg.model}")
-
-        while True:
-            if total_samples >= cfg.sample:
-                break
-            for attempt in range(1000):
-                try:
-                    response_cur = openai.ChatCompletion.create(
-                        model=model,
-                        messages=messages,
-                        temperature=cfg.temperature,
-                        n=chunk_size
-                    )
-                    total_samples += chunk_size
-                    break
-                except Exception as e:
-                    if attempt >= 10:
-                        chunk_size = max(int(chunk_size / 2), 1)
-                        print("Current Chunk Size", chunk_size)
-                    logging.info(f"Attempt {attempt+1} failed with error: {e}")
-                    time.sleep(1)
-            if response_cur is None:
-                logging.info("Code terminated due to too many failed attempts!")
-                exit()
-
-            responses.extend(response_cur["choices"])
-            prompt_tokens = response_cur["usage"]["prompt_tokens"]
-            total_completion_token += response_cur["usage"]["completion_tokens"]
-            total_token += response_cur["usage"]["total_tokens"]
+        logging.info(f"Iteration {iter}: Generating {cfg.sample} samples with {model}")
+        responses, usage = generate_rewards(
+            cfg.llm_base_url, model, messages, cfg.temperature, cfg.sample, cfg.llm_max_tokens
+        )
 
         if cfg.sample == 1:
-            logging.info(f"Iteration {iter}: GPT Output:\n " + responses[0]["message"]["content"] + "\n")
+            logging.info(f"Iteration {iter}: LLM Output:\n%s", responses[0]["message"]["content"])
 
-        # Logging Token Information
-        logging.info(f"Iteration {iter}: Prompt Tokens: {prompt_tokens}, Completion Tokens: {total_completion_token}, Total Tokens: {total_token}")
-        
+        logging.info(
+            "Iteration %s: Prompt Tokens: %s, Completion Tokens: %s, Total Tokens: %s",
+            iter, usage["prompt_tokens"], usage["completion_tokens"], usage["total_tokens"],
+        )
+
         code_runs = [] 
         rl_runs = []
         for response_id in range(cfg.sample):
             response_cur = responses[response_id]["message"]["content"]
             logging.info(f"Iteration {iter}: Processing Code Run {response_id}")
 
-            # Regex patterns to extract python code enclosed in GPT response
+            # Regex patterns to extract python code enclosed in LLM response
             patterns = [
                 r'```python(.*?)```',
                 r'```(.*?)```',
@@ -239,7 +206,7 @@ def main(cfg):
                 
                 content += policy_feedback.format(epoch_freq=epoch_freq)
                 
-                # Compute Correlation between Human-Engineered and GPT Rewards
+                # Compute Correlation between Human-Engineered and LLM Rewards
                 if "gt_reward" in tensorboard_logs and "gpt_reward" in tensorboard_logs:
                     gt_reward = np.array(tensorboard_logs["gt_reward"])
                     gpt_reward = np.array(tensorboard_logs["gpt_reward"])
@@ -306,7 +273,7 @@ def main(cfg):
 
         logging.info(f"Iteration {iter}: Max Success: {max_success}, Execute Rate: {execute_rate}, Max Success Reward Correlation: {max_success_reward_correlation}")
         logging.info(f"Iteration {iter}: Best Generation ID: {best_sample_idx}")
-        logging.info(f"Iteration {iter}: GPT Output Content:\n" +  responses[best_sample_idx]["message"]["content"] + "\n")
+        logging.info(f"Iteration {iter}: LLM Output Content:\n" +  responses[best_sample_idx]["message"]["content"] + "\n")
         logging.info(f"Iteration {iter}: User Content:\n" + best_content + "\n")
             
         # Plot the success rate

@@ -45,10 +45,13 @@ cd isaacgymenvs; pip install -e .
 cd ../rl_games; pip install -e .
 ```
 
-4. Eureka currently uses OpenAI API for language model queries. You need to have an OpenAI API key to use Eureka [here](https://platform.openai.com/account/api-keys)/. Then, set the environment variable in your terminal
+4. Start [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B) with vLLM in a separate environment on a compatible Linux GPU host. Keep the server running while Eureka runs.
+```bash
+pip install vllm
+vllm serve Qwen/Qwen3.8-27B --host 127.0.0.1 --max-model-len 32768
 ```
-export OPENAI_API_KEY= "YOUR_API_KEY"
-```
+
+Eureka connects to `http://127.0.0.1:8000/v1` by default and requires no OpenAI API key. Use `llm_base_url=http://HOST:PORT/v1` if the inference server is reachable at a different address. Use `model=NAME` if the server exposes Qwen under a different model name. The inference server and Isaac Gym each need sufficient GPU memory.
 
 # Getting Started
 
@@ -57,16 +60,16 @@ Navigate to the `eureka` directory and run:
 python eureka.py env={environment} iteration={num_iterations} sample={num_samples}
 ```
 - `{environment}` is the task to perform. Options are listed in `eureka/cfg/env`.
-- `{num_samples}` is the number of reward samples to generate per iteration. Default value is `16`.
-- `{num_iterations}` is the number of Eureka iterations to run. Default value is `5`.
+- `{num_samples}` is the number of reward samples to generate per iteration. Default value is `3`.
+- `{num_iterations}` is the number of Eureka iterations to run. Default value is `1`.
 
 
 Below are some example commands to try out Eureka:
 ```
-python eureka.py env=shadow_hand sample=4 iteration=2 model=gpt-4-0314
+python eureka.py env=shadow_hand sample=4 iteration=2
 ```
 ```
-python eureka.py env=humanoid sample=16 iteration=5 model=gpt-3.5-turbo-16k-0613
+python eureka.py env=humanoid sample=16 iteration=5
 ```
 Each run will create a timestamp folder in `eureka/outputs` that saves the Eureka log as well as all intermediate reward functions and associated policies.
 
