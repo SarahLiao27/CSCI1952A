@@ -10,7 +10,7 @@ def generate_rewards(base_url, model, messages, temperature, sample_count, max_t
     usage = dict.fromkeys(("prompt_tokens", "completion_tokens", "total_tokens"), 0)
 
     while len(responses) < sample_count:
-        count = min(4, sample_count - len(responses))
+        count = 1
         request = Request(
             endpoint,
             data=json.dumps({

@@ -6,6 +6,8 @@ import logging
 from utils.extract_task_code import file_to_string
 
 def set_freest_gpu():
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        return
     freest_gpu = get_freest_gpu()
     os.environ['CUDA_VISIBLE_DEVICES'] = str(freest_gpu)
 
