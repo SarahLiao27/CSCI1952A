@@ -20,6 +20,9 @@ ISAAC_ROOT_DIR = f"{EUREKA_ROOT_DIR}/../isaacgymenvs/isaacgymenvs"
 
 @hydra.main(config_path="cfg", config_name="config", version_base="1.1")
 def main(cfg):
+    if cfg.max_parallel_training < 1:
+        raise ValueError("max_parallel_training must be at least 1")
+
     workspace_dir = Path.cwd()
     logging.info(f"Workspace: {workspace_dir}")
     logging.info(f"Project Root: {EUREKA_ROOT_DIR}")
@@ -87,6 +90,9 @@ def main(cfg):
         code_runs = [] 
         rl_runs = []
         for response_id in range(cfg.sample):
+            if len(rl_runs) >= cfg.max_parallel_training:
+                rl_runs[-cfg.max_parallel_training].wait()
+
             response_cur = responses[response_id]["message"]["content"]
             logging.info(f"Iteration {iter}: Processing Code Run {response_id}")
 
@@ -317,6 +323,9 @@ def main(cfg):
     
     eval_runs = []
     for i in range(cfg.num_eval):
+        if len(eval_runs) >= cfg.max_parallel_training:
+            eval_runs[-cfg.max_parallel_training].wait()
+
         set_freest_gpu()
         
         # Execute the python file with flags
